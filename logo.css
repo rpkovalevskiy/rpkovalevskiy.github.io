@@ -1,0 +1,12 @@
+.site-header .site-logo{flex:none;max-width:100%;line-height:1}
+.site-header .site-logo img{display:block;height:76px;width:auto;max-width:100%;object-fit:contain}
+@media(max-width:1000px){
+  .site-header .header-inner{flex-wrap:wrap;gap:8px 22px;padding-top:10px}
+  .site-header .top-nav{width:100%;order:3;flex-wrap:wrap;justify-content:flex-start;margin-left:0;height:auto;gap:0 22px;padding-bottom:6px}
+  .site-header .top-nav a{min-height:44px;height:auto}
+}
+@media(max-width:750px){
+  .site-header .header-inner{padding-top:12px}
+  .site-header .site-logo img{height:64px}
+}
+@media(max-width:350px){.site-header .site-logo img{height:58px}}

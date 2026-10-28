@@ -1,0 +1,41 @@
+/* Shared wide header geometry for rost.love and its chemistry tools. */
+:root{--site-gutter:32px}
+.home-main,.home-footer,.page-wrap{box-sizing:border-box;width:100%;max-width:1440px;padding-left:var(--site-gutter);padding-right:var(--site-gutter)}
+body.structure-trainer>main,body>main.catalog-page{padding-left:var(--site-gutter);padding-right:var(--site-gutter)}
+.page_layout .banner-list__item-content .banner-list__item-content-inner{max-width:1440px!important;padding-left:var(--site-gutter)!important;padding-right:var(--site-gutter)!important}
+.page_layout main>.layout>.layout__content,.page_layout footer>.layout>.layout__content{box-sizing:border-box;width:100%;max-width:1440px;padding-left:var(--site-gutter)!important;padding-right:var(--site-gutter)!important}
+.page_layout .static-text>div[style*="max-width: 1000px"],.page_layout .credentials-grid,.page_layout .credentials-hint,.page_layout #contacts{max-width:none!important}
+.page_layout .reaction-promo{box-sizing:border-box;width:100%;max-width:1440px;padding-left:var(--site-gutter);padding-right:var(--site-gutter)}
+.page_layout .header{padding-left:0;padding-right:0}
+.site-header .header-inner,
+.page_layout .header .header__content-inner{
+  box-sizing:border-box;width:100%;max-width:1440px!important;margin:0 auto;
+  min-height:100px;padding:12px 32px;display:flex;align-items:center;
+  justify-content:space-between;gap:24px;
+}
+.page_layout .header__area-logo{padding:0;order:0;flex:none}
+.page_layout .header__area-show-menu{order:1;margin-left:auto;display:flex;align-items:center;gap:24px}
+.page_layout .header__contact-link{font-size:15px;line-height:1.6}
+.site-header .site-logo img{height:76px;width:auto;transform:translateX(-4.51282051%)}
+.page_layout .header__area-logo .site-logo img{height:76px;width:auto;transform:translateX(-6.19718310%)}
+body>.topbar{
+  box-sizing:border-box;height:auto;min-height:100px;
+  padding:12px max(32px,calc((100% - 1440px)/2 + 32px));gap:24px;
+}
+.topbar .chem-logo{flex:0 1 264.65px;min-width:0}
+.topbar .chem-logo img{width:100%;height:auto;max-height:76px;transform:translateX(-4.51282051%)}
+@media(max-width:1000px){
+  .site-header .header-inner{flex-wrap:wrap;gap:4px 22px;padding-top:12px}
+  .site-header .top-nav,.site-header .home-nav{width:100%;flex-wrap:wrap;justify-content:flex-start;gap:0 22px;padding-bottom:6px}
+  .site-header .top-nav a,.site-header .home-nav a{min-height:44px;display:inline-flex;align-items:center;padding-top:8px;padding-bottom:8px}
+}
+@media(max-width:767px){
+  :root{--site-gutter:16px}
+  .site-header .header-inner,.page_layout .header .header__content-inner{padding:12px var(--site-gutter);min-height:0;gap:4px 22px}
+  .site-header .site-logo img,.page_layout .header__area-logo .site-logo img{height:64px}
+  .page_layout .header .header__content-inner{flex-wrap:wrap}
+  .page_layout .header__area-show-menu{width:100%;margin-left:0;min-height:44px}
+  body>.topbar{min-height:88px;padding:12px var(--site-gutter);gap:12px}
+  .topbar .chem-logo{flex-basis:222.86px}
+  .topbar .chem-logo img{max-height:64px}
+}
