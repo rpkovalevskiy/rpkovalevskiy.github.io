@@ -1,0 +1,14 @@
+.topbar .chem-logo{flex-shrink:0;max-width:100%}
+.topbar .chem-logo img{display:block;width:240px;max-width:100%;height:auto}
+@media(max-width:700px){
+  .topbar{height:auto;min-height:72px;flex-wrap:nowrap;padding:8px 17px;gap:12px}
+  .topbar .chem-logo{flex:0 1 200px;min-width:0}
+  .topbar .chem-logo img{width:200px}
+  .topbar .header-actions{flex:0 0 auto;margin-left:auto;flex-wrap:nowrap;gap:8px}
+  .topbar .header-actions .button{white-space:nowrap}
+  .structure-trainer .page-heading{gap:12px}
+  .structure-trainer .page-heading>div{flex:1;min-width:0}
+  .structure-trainer .page-heading h1{font-size:clamp(16px,5.1vw,23px);line-height:1.25;letter-spacing:-.45px;max-width:none;white-space:nowrap;margin-bottom:10px}
+  .structure-trainer .page-subtitle{font-size:15px;line-height:1.5}
+  .structure-trainer #help-open{flex-shrink:0;margin-top:0}
+}

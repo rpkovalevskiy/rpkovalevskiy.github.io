@@ -1,0 +1,159 @@
+import * as Chem from './chemistry.js?v=20261027-rotation';
+import {loadProgress,saveProgress,completedTasks,chooseTaskIndex,pinchViewport} from './session.js';
+const db=window.ORGANIC_DATA,$=id=>document.getElementById(id),NS='http://www.w3.org/2000/svg';
+const molecules=Object.fromEntries(db.molecules.map(m=>[m.id,m]));
+let saved=loadProgress(),solved=new Set(saved.solved||[]),completed=completedTasks(saved);
+const requested=new URLSearchParams(location.search).get('task'),requestedIndex=db.tasks.findIndex(t=>t.id===requested);
+let taskIndex=requestedIndex>=0?requestedIndex:chooseTaskIndex(db.tasks,completed),task=db.tasks[taskIndex];
+let state=Chem.blank(task.ratio),selected=null,tool='select',element='C',group='OH',order=1,history=[],future=[],assisted=false,feedback=null,locked=completed.has(task.id),placementUsed=false;
+let viewport={x:0,y:0,w:900,h:660},toastTimer,gesture=null,placementArmed=false,dropTarget=null,pinch=null,suppressTap=false;
+const pointers=new Map();
+const ctx=document.createElement('canvas').getContext('2d');ctx.font='23px Arial';
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const formula=s=>esc(s).replace(/(\d+)/g,'<sub>$1</sub>');
+function persist(){saved.current=task.id;saved.solved=[...solved];saved.completed=[...completed];saved.drafts||={};if(locked)delete saved.drafts[task.id];else saved.drafts[task.id]={state,assisted};saveProgress(saved);}
+function taskUrl(){window.history.replaceState(null,'',`?task=${encodeURIComponent(task.id)}`);}
+
+function toast(text){clearTimeout(toastTimer);$('toast').textContent=text;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,3500);}
+function snapshot(){return {state:Chem.clone(state),selected,assisted};}
+function restore(s){closeBondMenu();placementArmed=false;state=Chem.clone(s.state);selected=s.selected;assisted=s.assisted;feedback=null;render();persist();}
+function act(fn,{resetAssisted=false,relayout=true,associate=true,allowOverBudget=false}={}){if(locked)return false;closeBondMenu();const before=snapshot();try{fn();if(selected!==null&&!Chem.atom(state,selected))selected=null;const usedBefore=Chem.composition(before.state);if(!allowOverBudget&&Object.entries(Chem.composition(state)).some(([e,n])=>n>(state.budget[e]||0)&&n>(usedBefore[e]||0)))Chem.assertBudget(state);if(relayout)Chem.layout(state,!associate);history.push(before);if(history.length>70)history.shift();future=[];if(resetAssisted)assisted=false;feedback=null;render();persist();return true;}catch(e){state=before.state;selected=before.selected;assisted=before.assisted;render();toast(e.message);return false;}}
+function undo(){if(locked||!history.length)return;future.push(snapshot());restore(history.pop());}
+function redo(){if(locked||!future.length)return;history.push(snapshot());restore(future.pop());}
+function showTask(index){closeBondMenu();placementArmed=false;placementUsed=false;persist();taskIndex=(index+db.tasks.length)%db.tasks.length;task=db.tasks[taskIndex];locked=completed.has(task.id);const draft=!locked&&saved.drafts?.[task.id];state=draft?Chem.clone(draft.state):Chem.blank(task.ratio);assisted=draft?.assisted||false;if(draft)Chem.layout(state,true);selected=null;tool='select';history=[];future=[];feedback=null;resetView();if(state.nodes.length)fit();taskUrl();render();persist();document.querySelector('.page-heading').scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});}
+function nextUnsolved(){showTask(chooseTaskIndex(db.tasks,completed,task.id));}
+function retryTask(){locked=false;state=Chem.blank(task.ratio);assisted=false;selected=null;tool='select';history=[];future=[];feedback=null;placementUsed=false;placementArmed=false;closeBondMenu();resetView();render();persist();}
+
+function selectTool(next,value){if(locked)return;placementUsed=false;closeBondMenu();const same=tool===next&&(next==='atom'?element===value:next==='group'?group===value:next==='bond'?order===value:true);if(same)next='select';tool=next;if(next==='atom')element=value;if(next==='group')group=value;if(next==='bond')order=value;selected=null;placementArmed=['atom','group'].includes(next);feedback=null;render();if(placementArmed&&innerWidth<1000)$('canvas').scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});}
+function inventoryForPreset(key){const c={};for(const [e,h] of Chem.PRESETS[key].atoms){c[e]=(c[e]||0)+1;if(h)c.H=(c.H||0)+h;}return c;}
+function availableGroup(key){return Object.entries(inventoryForPreset(key)).every(([e,n])=>Chem.remaining(state,e)>=n);}
+function renderPalette(){
+ $('atom-palette').innerHTML=Chem.ELEMENTS.map(e=>`<button class="atom-button ${tool==='atom'&&element===e?'active':''} ${Chem.remaining(state,e)<1?'unavailable':''}" data-element="${e}" title="${e==='H'?'Добавить свободный H на поле или H к атому':`Выбрать ${e}, затем нажать на поле или атом`}" aria-pressed="${tool==='atom'&&element===e}" ${Chem.remaining(state,e)<1&&!(tool==='atom'&&element===e)?'disabled':''}>${e}${Chem.METALS[e]?`<small>${Chem.METALS[e]===1?'+':`${Chem.METALS[e]}+`}</small>`:''}</button>`).join('');
+ $('group-palette').innerHTML=Object.entries(Chem.PRESETS).map(([key,p])=>`<button class="group-button ${tool==='group'&&group===key?'active':''}" data-group="${key}" ${!availableGroup(key)&&!(tool==='group'&&group===key)?'disabled':''} aria-pressed="${tool==='group'&&group===key}" title="${key==='benzene'?'6 углеродов, без водородов':`Добавить ${p.label}`}">${key==='benzene'?'<span style="font-size:20px">⌬</span> ':''}${p.label}</button>`).join('');
+ document.querySelectorAll('[data-tool]').forEach(b=>{const active=tool===b.dataset.tool;b.classList.toggle('active',active);b.setAttribute('aria-pressed',active);});
+ document.querySelectorAll('[data-order]').forEach(b=>{const active=tool==='bond'&&Number(b.dataset.order)===order;b.classList.toggle('active',active);b.setAttribute('aria-pressed',active);});
+ const names={atom:`${element} · на поле — атом, на атоме — связь`,group:Chem.PRESETS[group].label,bond:`${order===1?'Одинарная':order===2?'Двойная':'Тройная'} связь`,ionic:'Ионное соседство · без черты',erase:'Удаление атомов и связей',select:'Выбор и перемещение',rotate:'Поворот всей молекулы'};
+ $('tool-description').textContent=names[tool];$('undo').disabled=!history.length;$('redo').disabled=!future.length;
+ document.querySelectorAll('.selected-controls button').forEach(b=>b.disabled=selected===null);
+}
+function renderBudget(){const used=Chem.composition(state),excess=[];$('budget').innerHTML=Object.keys(task.ratio).map(e=>{const left=(state.budget[e]||0)-(used[e]||0);if(left<0)excess.push(`${e}: ${-left}`);return `<div class="budget-atom ${left===0?'empty':left<0?'overdrawn':''}"><span class="budget-element"><span class="element">${e}</span><span class="budget-factor" aria-label="Множитель запаса атомов: ${state.factor}">×${state.factor}</span></span><span><span class="amount">${left<0?'лишних '+(-left):left}</span><span class="total"> / ${state.budget[e]||0}</span></span></div>`;}).join('');$('reset-multiplier').disabled=state.factor===1;$('budget-excess').hidden=!excess.length;$('budget-excess').textContent=excess.length?`На поле лишние атомы: ${excess.join(', ')}. Удалите их или увеличьте запас.`:'';$('ratio').textContent=Object.keys(task.ratio).join(' : ')+' = '+Object.values(task.ratio).join(' : ');}
+function renderLesson(){
+ $('task-number').textContent=`ЗАДАНИЕ ${String(taskIndex+1).padStart(2,'0')} / ${db.tasks.length}`;
+ $('condition').textContent=task.condition;$('progress').textContent=`${db.tasks.filter(t=>completed.has(t.id)).length} / ${db.tasks.length} решено`;
+}
+function svgEl(tag,attrs={},text){const e=document.createElementNS(NS,tag);for(const [k,v] of Object.entries(attrs))e.setAttribute(k,v);if(text!==undefined)e.textContent=text;return e;}
+function aspect(){const r=$('canvas').getBoundingClientRect();return r.width?r.height/r.width:660/900;}
+function resetView(){const w=$('canvas').clientWidth<550?480:900;viewport={x:0,y:0,w,h:w*aspect()};}
+function view(){ $('canvas').setAttribute('viewBox',`${viewport.x} ${viewport.y} ${viewport.w} ${viewport.h}`);$('zoom-label').textContent=`${Math.round(900/viewport.w*100)}%`;}
+function displayInfo(){const mapped=new Map(),groups=new Map();for(const g of state.groups)for(const id of g.atomIds){mapped.set(id,g.root);groups.set(g.root,g);}const rings=Chem.cycles(state),cyclic=new Set(rings.flat());const nodes=state.nodes.filter(a=>!mapped.has(a.id)||mapped.get(a.id)===a.id).map(a=>{const g=groups.get(a.id);let label=g?g.key:cyclic.has(a.id)&&a.e==='C'?'':a.e+(a.h?`H${a.h===1?'':a.h}`:'');if(a.e==='O'&&a.h===1&&!g){const nb=Chem.edges(state,a.id).map(b=>Chem.atom(state,Chem.neighbor(b,a.id)));if(nb.some(n=>n.x>a.x+5))label='HO';}return {...a,label,displayCharge:g?g.charge:a.q,group:g};});return {nodes,rings,cyclic,map:id=>mapped.get(id)||id};}
+function renderCanvas(){
+ const draw=$('drawing');draw.replaceChildren();view();const info=displayInfo(),di=new Map(info.nodes.map(a=>[a.id,a]));
+ const width=a=>a.label?ctx.measureText(a.label).width/2+7:0;
+ const lineLayer=svgEl('g'),portLayer=svgEl('g'),atomLayer=svgEl('g');draw.append(lineLayer,portLayer,atomLayer);
+ for(const b of state.bonds){const ai=info.map(b.a),bi=info.map(b.b);if(ai===bi||b.ionic)continue;const A=di.get(ai),B=di.get(bi);if(!A||!B)continue;const dx=B.x-A.x,dy=B.y-A.y,len=Math.hypot(dx,dy);if(len<1)continue;const ux=dx/len,uy=dy/len;
+  const trim=a=>a.label?Math.min(len*.43,Math.min(width(a)/(Math.abs(ux)||.001),20/(Math.abs(uy)||.001))):0;const ta=trim(A),tb=trim(B);const x1=A.x+ux*ta,y1=A.y+uy*ta,x2=B.x-ux*tb,y2=B.y-uy*tb;
+  const orders=b.order===1.5?[0]:b.order===2?[-3.2,3.2]:b.order===3?[-5,0,5]:[0];
+  for(const off of orders)lineLayer.append(svgEl('line',{x1:x1-uy*off,y1:y1+ux*off,x2:x2-uy*off,y2:y2+ux*off,class:'bond-line','pointer-events':'none'}));
+  lineLayer.append(svgEl('line',{x1:A.x,y1:A.y,x2:B.x,y2:B.y,stroke:'transparent','stroke-width':17,class:'bond-hit','data-bond':`${b.a},${b.b}`}));
+ }
+ for(const ring of info.rings){if(!ring.every(id=>Chem.atom(state,id).aromatic))continue;const rr=ring.map(id=>Chem.atom(state,id));const x=rr.reduce((v,a)=>v+a.x,0)/rr.length,y=rr.reduce((v,a)=>v+a.y,0)/rr.length,r=Math.min(...rr.map(a=>Math.hypot(a.x-x,a.y-y)))*.62;lineLayer.append(svgEl('circle',{cx:x,cy:y,r,class:'aromatic-circle','pointer-events':'none'}));}
+ for(const a of info.nodes){
+  const actual=Chem.atom(state,a.id);let count=a.group?0:Chem.ports(state,a.id);const occupied=Chem.edges(state,a.id,a.e in Chem.METALS).map(b=>Chem.atom(state,Chem.neighbor(b,a.id))).filter(n=>Math.hypot(n.x-a.x,n.y-a.y)>1).map(n=>Math.atan2(n.y-a.y,n.x-a.x));
+  if(count){const directions=Chem.directions(actual,state),origin=occupied[0]||0;const oa=Chem.oxygenAngle(state,a.id),choices=oa&&occupied.length?[origin-oa*Math.PI/180,origin+oa*Math.PI/180]:Array.from({length:directions},(_,i)=>origin+i*2*Math.PI/directions);const shown=[];for(let i=0;i<Math.min(count,directions);i++){choices.sort((x,y)=>occupied.concat(shown).reduce((v,o)=>v+1/(.05+1-Math.cos(x-o)),0)-occupied.concat(shown).reduce((v,o)=>v+1/(.05+1-Math.cos(y-o)),0));const angle=choices.shift();if(angle===undefined)break;shown.push(angle);const start=Math.max(22,width(a)+5),end=start+16;portLayer.append(svgEl('line',{x1:a.x+Math.cos(angle)*start,y1:a.y+Math.sin(angle)*start,x2:a.x+Math.cos(angle)*end,y2:a.y+Math.sin(angle)*end,class:'atom-dot','pointer-events':'none'}));}}
+  if(selected===a.id||dropTarget===a.id)atomLayer.append(svgEl('rect',{x:a.x-Math.max(width(a),18)-4,y:a.y-22,width:Math.max(width(a)*2,36)+8,height:44,rx:11,class:dropTarget===a.id?'drop-highlight':'atom-highlight','pointer-events':'none'}));
+  if(a.label||a.displayCharge){const text=svgEl('text',{x:a.x,y:a.y+8,'text-anchor':'middle',class:'atom-label','pointer-events':'none'});for(const part of a.label.split(/(\d+)/)){if(!part)continue;const sp=svgEl('tspan',/^\d+$/.test(part)?{'font-size':14,'baseline-shift':'sub'}:{},part);text.append(sp);}if(a.displayCharge){const q=Math.abs(a.displayCharge),charge=(q===1?'':q)+(a.displayCharge>0?'+':'−');text.append(svgEl('tspan',{'font-size':13,'baseline-shift':'super',dx:2},charge));}atomLayer.append(text);}
+  atomLayer.append(svgEl('rect',{x:a.x-Math.max(width(a),17)-4,y:a.y-23,width:Math.max(width(a)*2,34)+8,height:46,rx:8,fill:'transparent',class:'atom-hit','data-atom':a.id}));
+ }
+ $('empty-state').hidden=state.nodes.length>0||locked;const sel=Chem.atom(state,selected);$('selection-info').textContent=locked?'Чтобы начать заново, нажмите «Попробовать ещё раз»':dropTarget!==null?'Отпустите, чтобы соединить атомы':sel?`${sel.e}${sel.h?' · H: '+sel.h:''}${sel.q?' · заряд '+(sel.q>0?'+':'')+sel.q:''} · свободных валентностей: ${Chem.freeValence(state,sel.id)}`:'Перетащите атом на другой, чтобы создать связь';
+ const armed=!locked&&['atom','group'].includes(tool),label=tool==='group'?Chem.PRESETS[group].label:element;$('canvas').parentElement.classList.toggle('awaiting-placement',armed);$('placement-cue').hidden=!armed;$('placement-cue').textContent=armed?`Выбрано: ${label}. Нажмите на поле, чтобы добавить.${placementUsed?' Нажмите ещё раз на выбранную кнопку, чтобы снять выбор.':''}`:'';
+ const rotating=!locked&&tool==='rotate';$('molecule-rotation').hidden=!rotating;$('canvas').parentElement.classList.toggle('rotating-molecule',rotating);document.querySelectorAll('[data-rotate-molecule]').forEach(b=>b.disabled=locked||!state.nodes.length);if(rotating)$('selection-info').textContent='Тяните атом по кругу. Для точного выравнивания нажмите на связь → «По горизонтали».';
+
+}
+function renderFeedback(){const box=$('feedback');box.hidden=!feedback;if(!feedback)return;box.className='feedback'+(feedback.ok?' success':'');box.replaceChildren(document.createTextNode(feedback.text));if(feedback.ok){const b=document.createElement('button');b.className='text-button';b.textContent='Следующее задание →';b.onclick=()=>showTask(taskIndex+1);box.append(b);}}
+function renderCompletion(){
+ $('completed-banner').hidden=!locked;$('canvas').setAttribute('aria-disabled',locked);document.querySelector('.editor-card').classList.toggle('is-locked',locked);
+ for(const id of ['clear','check','fill-hydrogens','multiply-2','multiply-3','add-all-heavy','add-all-atoms'])$(id).disabled=locked;
+ if(locked)document.querySelectorAll('.editor-toolbar button,.selected-controls button,#atom-palette button,#group-palette button').forEach(b=>b.disabled=true);
+ document.querySelectorAll('.editor-toolbar [data-tool],.editor-toolbar [data-order]').forEach(b=>b.disabled=locked);$('reset-multiplier').disabled=locked||state.factor===1;$('answer-open').disabled=false;
+}
+function render(){renderLesson();renderBudget();renderPalette();renderCanvas();renderFeedback();renderCompletion();}
+function point(event){const p=$('canvas').createSVGPoint();p.x=event.clientX;p.y=event.clientY;return p.matrixTransform($('canvas').getScreenCTM().inverse());}
+function nodeClick(id){if(locked)return;
+ if(tool==='erase'){act(()=>{Chem.removeAtom(state,id);selected=null;});return;}
+ if(tool==='atom'||tool==='group'){
+  if(act(()=>{if(tool==='atom'&&element==='H'){Chem.addHydrogen(state,id);selected=id;return;}const center=Chem.atom(state,id),newId=tool==='group'?Chem.addGroup(state,group,center.x+84,center.y):Chem.addAtom(state,element,center.x+84,center.y);const ionic=tool==='group'&&Chem.PRESETS[group].charge<0;Chem.addBond(state,id,newId,1,ionic);selected=newId;})){placementArmed=false;placementUsed=true;renderCanvas();}return;
+ }
+ if((tool==='bond'||tool==='ionic')&&selected!==null&&selected!==id){act(()=>{const survivor=Chem.atom(state,id).e==='H'?selected:id;Chem.addBond(state,selected,id,order,tool==='ionic');selected=survivor;});return;}
+ selected=selected===id?null:id;renderCanvas();renderPalette();
+}
+let activeBond=null;
+function closeBondMenu(){activeBond=null;$('bond-menu').hidden=true;}
+function bondClick(a,b,event){if(locked)return;if(tool==='erase'){act(()=>Chem.removeBond(state,a,b));return;}activeBond={a,b};let ends;try{ends=Chem.rotationEnds(state,a,b);}catch{}$('rotation-caption').textContent=ends?`Повернуть фрагмент за ${Chem.atom(state,ends.pivot).e}–${Chem.atom(state,ends.moving).e}`:'Связь входит в цикл';document.querySelectorAll('[data-turn], [data-mirror]').forEach(b=>b.disabled=!ends);const menu=$('bond-menu'),wrap=$('canvas').parentElement.getBoundingClientRect(),bond=state.bonds.find(e=>e.a===a&&e.b===b||e.a===b&&e.b===a);menu.hidden=false;menu.style.left=`${Math.max(8,Math.min(wrap.width-menu.offsetWidth-8,event.clientX-wrap.left))}px`;menu.style.top=`${Math.max(40,Math.min(wrap.height-menu.offsetHeight-8,event.clientY-wrap.top+12))}px`;menu.querySelectorAll('[data-bond-order]').forEach(button=>{const pressed=Number(button.dataset.bondOrder)===bond.order;button.classList.toggle('active',pressed);button.setAttribute('aria-pressed',pressed);});menu.querySelector('button').focus({preventScroll:true});}
+function blankClick(p){if(locked)return;if(['select','erase'].includes(tool)){selected=null;render();return;}if(['ionic','bond'].includes(tool)){toast('Для связи выберите два атома или перетащите один на другой');return;}
+ if(act(()=>{selected=tool==='group'?Chem.addGroup(state,group,p.x,p.y):Chem.addAtom(state,element,p.x,p.y);},{relayout:tool==='group',associate:false})){placementArmed=false;placementUsed=true;renderCanvas();}}
+function addAll(includeHydrogen){if(locked)return;const inventory=Chem.ELEMENTS.filter(e=>includeHydrogen||e!=='H').map(e=>[e,Math.max(0,Chem.remaining(state,e))]),total=inventory.reduce((n,[,count])=>n+count,0);if(!total){toast('Все выбранные элементы уже на поле');return;}if(total>1000){toast('За один раз можно выложить до 1000 атомов. Уменьшите запас с помощью отмены');return;}
+ if(act(()=>{const occupied=displayInfo().nodes.map(a=>({x:a.x,y:a.y})),columns=Math.max(3,Math.floor(viewport.w/110));let slot=0;for(const [e,count] of inventory)for(let i=0;i<count;i++){let p;do{p={x:viewport.x+65+(slot%columns)*110,y:viewport.y+100+Math.floor(slot/columns)*110};slot++;}while(occupied.some(a=>Math.hypot(a.x-p.x,a.y-p.y)<85));selected=Chem.addAtom(state,e,p.x,p.y);occupied.push(p);}placementArmed=false;placementUsed=true;},{relayout:false})){fit();if(innerWidth<1000)$('canvas').scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});toast(`Добавлено атомов: ${total}. Перетаскивайте их друг на друга, чтобы соединить`);}}
+function component(id){return Chem.connectedIds(state,id);}
+function rotationTarget(){return Chem.atom(state,selected)?.id??state.nodes[0]?.id;}
+function zoom(factor,center){const c=center||{x:viewport.x+viewport.w/2,y:viewport.y+viewport.h/2},w=Math.max(260,Math.min(2200,viewport.w*factor)),scale=w/viewport.w;viewport.x=c.x-(c.x-viewport.x)*scale;viewport.y=c.y-(c.y-viewport.y)*scale;viewport.w=w;viewport.h=w*aspect();view();}
+function fit(){const di=displayInfo().nodes;if(!di.length){resetView();view();return;}const minX=Math.min(...di.map(a=>a.x))-95,maxX=Math.max(...di.map(a=>a.x))+95,minY=Math.min(...di.map(a=>a.y))-95,maxY=Math.max(...di.map(a=>a.y))+95;const w=Math.max(400,maxX-minX,(maxY-minY)/aspect());viewport={x:(minX+maxX-w)/2,y:(minY+maxY-w*aspect())/2,w,h:w*aspect()};view();}
+function nearbyTarget(p,ids){const radius=Math.max(25,24*viewport.w/$('canvas').getBoundingClientRect().width);return displayInfo().nodes.filter(a=>!ids.has(a.id)).map(a=>({id:a.id,d:Math.hypot(a.x-p.x,a.y-p.y)})).filter(a=>a.d<=radius).sort((a,b)=>a.d-b.d)[0]?.id??null;}
+function beginPinch(){dropTarget=null;if(gesture?.component||gesture?.rotation){state=gesture.before.state;selected=gesture.before.selected;renderCanvas();}gesture=null;dropTarget=null;const ps=[...pointers.values()].slice(0,2),mid={clientX:(ps[0].x+ps[1].x)/2,clientY:(ps[0].y+ps[1].y)/2};pinch={initial:{...viewport},anchor:point(mid),distance:Math.max(1,Math.hypot(ps[1].x-ps[0].x,ps[1].y-ps[0].y))};suppressTap=true;closeBondMenu();}
+$('canvas').addEventListener('pointerdown',e=>{
+ if(e.button!==0)return;if(pointers.size===0)suppressTap=false;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});$('canvas').setPointerCapture(e.pointerId);
+ if(pointers.size>=2){if(!pinch)beginPinch();e.preventDefault();return;}
+ closeBondMenu();const p=point(e),node=e.target.closest('[data-atom]')?.dataset.atom,bond=e.target.closest('[data-bond]')?.dataset.bond;gesture={start:p,last:p,clientX:e.clientX,clientY:e.clientY,node:node?Number(node):null,bond,moved:false,before:snapshot(),viewport:{...viewport}};
+ if(!locked&&tool==='rotate'&&!bond){const id=gesture.node??rotationTarget();if(id!==undefined){const ids=component(id),nodes=displayInfo().nodes.filter(n=>ids.has(n.id)),center={x:nodes.reduce((v,n)=>v+n.x,0)/nodes.length,y:nodes.reduce((v,n)=>v+n.y,0)/nodes.length};gesture.rotation={id,center,angle:Math.atan2(p.y-center.y,p.x-center.x)};}return;}
+ if(!locked&&gesture.node!==null&&tool!=='erase'){const group=state.groups.find(g=>g.atomIds.includes(gesture.node));gesture.component=tool==='select'?component(gesture.node):new Set(group?group.atomIds:[gesture.node]);}
+});
+$('canvas').addEventListener('pointermove',e=>{
+ if(!pointers.has(e.pointerId))return;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+ if(pinch&&pointers.size>=2){e.preventDefault();viewport=pinchViewport(pinch.initial,pinch.anchor,pinch.distance,[...pointers.values()].slice(0,2),$('canvas').getBoundingClientRect());view();return;}
+ if(suppressTap||!gesture)return;if(Math.hypot(e.clientX-gesture.clientX,e.clientY-gesture.clientY)<6&&!gesture.moved)return;gesture.moved=true;const p=point(e);
+ if(gesture.rotation){const {id,center,angle}=gesture.rotation;state=Chem.clone(gesture.before.state);const delta=Math.atan2(p.y-center.y,p.x-center.x)-angle;Chem.rotateMolecule(state,id,e.shiftKey?Math.round(delta/(Math.PI/12))*Math.PI/12:delta,center);selected=id;renderCanvas();return;}
+ if(gesture.component){const dx=p.x-gesture.last.x,dy=p.y-gesture.last.y;for(const a of state.nodes)if(gesture.component.has(a.id)){a.x+=dx;a.y+=dy;}gesture.last=p;dropTarget=nearbyTarget(Chem.atom(state,gesture.node),gesture.component);renderCanvas();}
+ else{const scale=gesture.viewport.w/$('canvas').getBoundingClientRect().width;viewport.x=gesture.viewport.x-(e.clientX-gesture.clientX)*scale;viewport.y=gesture.viewport.y-(e.clientY-gesture.clientY)*scale;view();}
+});
+$('canvas').addEventListener('pointerup',e=>{
+ pointers.delete(e.pointerId);if(pinch||suppressTap){gesture=null;dropTarget=null;if(pointers.size>=2)beginPinch();else pinch=null;if(!pointers.size)suppressTap=false;return;}
+ if(!gesture)return;const g=gesture,target=dropTarget;gesture=null;dropTarget=null;
+ if(g.rotation){if(g.moved){history.push(g.before);if(history.length>70)history.shift();future=[];feedback=null;persist();render();}else if(g.node!==null){selected=g.node;render();}return;}
+ if(g.moved){if(g.component){if(target!==null){state=Chem.clone(g.before.state);selected=g.before.selected;if(state.bonds.some(b=>b.a===g.node&&b.b===target||b.a===target&&b.b===g.node)){toast('Связь уже существует. Нажмите на неё, чтобы изменить');render();return;}act(()=>{const surviving=Chem.atom(state,g.node).e==='H'?target:g.node;Chem.addBond(state,g.node,target,1,tool==='ionic');selected=surviving;placementUsed=true;});}
+ else{history.push(g.before);if(history.length>70)history.shift();future=[];selected=g.node;feedback=null;Chem.layout(state,true);persist();render();}}return;}
+ if(g.node!==null)nodeClick(g.node);else if(g.bond)bondClick(...g.bond.split(',').map(Number),e);else blankClick(point(e));
+});
+$('canvas').addEventListener('pointercancel',e=>{pointers.delete(e.pointerId);if(gesture){state=gesture.before.state;selected=gesture.before.selected;viewport=gesture.viewport;}gesture=null;pinch=null;suppressTap=pointers.size>0;dropTarget=null;render();});
+$('canvas').addEventListener('wheel',e=>{e.preventDefault();zoom(e.deltaY>0?1.12:.89,point(e));},{passive:false});
+$('atom-palette').addEventListener('click',e=>{const el=e.target.closest('[data-element]');if(el)selectTool('atom',el.dataset.element);});
+$('group-palette').addEventListener('click',e=>{const el=e.target.closest('[data-group]');if(el)selectTool('group',el.dataset.group);});
+$('add-all-heavy').onclick=()=>addAll(false);$('add-all-atoms').onclick=()=>addAll(true);
+$('bond-menu').addEventListener('click',e=>{const button=e.target.closest('button');if(!button||!activeBond)return;const {a,b}=activeBond;if(button.hasAttribute('data-delete-bond'))act(()=>Chem.removeBond(state,a,b));else if(button.hasAttribute('data-align-molecule')){if(act(()=>Chem.alignMolecule(state,a,b),{relayout:false}))toast('Молекула повёрнута: выбранная связь горизонтальна');}else if(button.dataset.bondOrder)act(()=>Chem.addBond(state,a,b,Number(button.dataset.bondOrder)));else if(button.dataset.turn||button.hasAttribute('data-mirror')){const position=$('bond-menu').getBoundingClientRect();if(act(()=>Chem.turnFragment(state,a,b,Number(button.dataset.turn)||1,button.hasAttribute('data-mirror')))){bondClick(a,b,{clientX:position.left,clientY:position.top-12});toast('Направление фрагмента изменено');}}});
+document.querySelectorAll('[data-rotate-molecule]').forEach(b=>b.onclick=()=>{const id=rotationTarget();if(id!==undefined)act(()=>Chem.rotateMolecule(state,id,Number(b.dataset.rotateMolecule)*Math.PI/180),{relayout:false});});
+document.addEventListener('pointerdown',e=>{if(!e.target.closest('#bond-menu')&&!e.target.closest('[data-bond]'))closeBondMenu();});
+document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>selectTool(b.dataset.tool));
+document.querySelectorAll('[data-order]').forEach(b=>b.onclick=()=>selectTool('bond',Number(b.dataset.order)));
+document.querySelectorAll('[data-charge]').forEach(b=>b.onclick=()=>act(()=>Chem.setCharge(state,selected,Number(b.dataset.charge))));
+$('add-h').onclick=()=>act(()=>Chem.addHydrogen(state,selected));$('remove-h').onclick=()=>act(()=>Chem.addHydrogen(state,selected,-1));
+for(const n of [2,3])$(`multiply-${n}`).onclick=()=>act(()=>{if(!Object.values(state.budget).every(v=>Number.isSafeInteger(v*n)))throw Error('Слишком большой запас атомов. Вернись на шаг назад или очисти поле');state.factor*=n;for(const e of Object.keys(state.budget))state.budget[e]*=n;});
+$('reset-multiplier').onclick=()=>{if(act(()=>Chem.resetMultiplier(state,task.ratio),{relayout:false,allowOverBudget:true}))toast('Запас атомов возвращён к исходному соотношению');};
+$('fill-hydrogens').onclick=()=>{let n=0;if(act(()=>{n=Chem.fillHydrogens(state);})){toast(n?`Добавлено водородов: ${n}`:'Все свободные валентности уже заполнены');}};
+$('clear').onclick=()=>act(()=>{const budget={...state.budget},factor=state.factor;state=Chem.blank(budget);state.factor=factor;selected=null;},{relayout:false});$('undo').onclick=undo;$('redo').onclick=redo;
+$('zoom-in').onclick=()=>zoom(.8);$('zoom-out').onclick=()=>zoom(1.25);$('fit').onclick=fit;
+$('previous').onclick=()=>showTask(taskIndex-1);$('next').onclick=()=>showTask(taskIndex+1);$('random').onclick=nextUnsolved;
+$('check').onclick=()=>{if(locked)return;try{Chem.validate(state);const ok=task.answerIds.some(id=>Chem.isomorphic(state,Chem.fromExpected(molecules[id])));if(!ok)throw Error('Состав и валентности заполнены, но строение не соответствует условию. Проверь положение групп и типы связей.');if(!assisted)solved.add(task.id);completed.add(task.id);locked=true;tool='select';selected=null;feedback=null;clearTimeout(toastTimer);$('toast').hidden=true;closeBondMenu();history=[];future=[];persist();}catch(e){feedback={ok:false,text:e.message};}render();if(locked)$('completed-banner').scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});};
+$('catalog-open').onclick=()=>persist();$('retry-task').onclick=retryTask;$('next-unsolved').onclick=nextUnsolved;
+$('help-open').onclick=()=>$('help-dialog').showModal();
+function showAnswer(){assisted=true;persist();$('answer-content').innerHTML=task.answerIds.map(id=>{const m=molecules[id];return `<section class="answer-variant"><h3>${esc(m.name_ru)}</h3><p class="answer-formula">${formula(m.minimal_formula)} → ${formula(m.formula)} <span class="muted">×${m.minimal_to_final_multiplier}</span></p><img src="${m.svg}" alt="${esc(m.structural_formula)}"><p class="small muted">${esc(m.structural_formula)}</p><button class="button" data-load-answer="${id}" ${locked?'disabled':''}>Открыть образец в редакторе</button></section>`;}).join('');$('answer-dialog').showModal();}
+$('answer-open').onclick=showAnswer;
+function expectedState(m){const s=Chem.fromExpected(m);for(const g of m.collapsed_groups||[]){const ids=g.atom_ids;const root=s.nodes.find(a=>ids.includes(a.id)&&['N','S'].includes(a.e));if(root)s.groups.push({id:`g${root.id}`,key:g.label,root:root.id,atomIds:ids,charge:ids.reduce((n,id)=>n+Chem.atom(s,id).q,0)});}for(const l of m.ionic_layout_links||[])s.bonds.push({a:l.negative_atom,b:l.positive_atom,order:0,ionic:true});return s;}
+$('answer-content').onclick=e=>{const b=e.target.closest('[data-load-answer]');if(!b)return;if(!act(()=>{state=expectedState(molecules[b.dataset.loadAnswer]);selected=null;assisted=true;}))return;fit();$('answer-dialog').close();toast('Открыт образец: можно изучать связи и менять структуру');};
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).close());
+document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close();}}));
+document.addEventListener('keydown',e=>{if(locked||['INPUT','TEXTAREA'].includes(e.target.tagName)||document.querySelector('dialog[open]'))return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();return;}if(e.ctrlKey||e.metaKey||e.altKey)return;if(e.key==='Escape'){if(activeBond){closeBondMenu();$('canvas').focus({preventScroll:true});return;}placementArmed=false;selected=null;tool='select';render();return;}if(tool==='rotate'&&['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();const id=rotationTarget();if(id!==undefined)act(()=>Chem.rotateMolecule(state,id,(e.key==='ArrowLeft'?-1:1)*(e.shiftKey?1:15)*Math.PI/180),{relayout:false});return;}if(['1','2','3'].includes(e.key)){selectTool('bond',Number(e.key));}if(e.key.toLowerCase()==='r')selectTool('rotate');if(e.key.toLowerCase()==='h')selectTool('atom','H');if(e.key.toLowerCase()==='c')selectTool('atom','C');if(e.key.toLowerCase()==='v')selectTool('select');if(e.key.toLowerCase()==='e')selectTool('erase');if(e.key==='Delete'&&selected!==null)act(()=>{Chem.removeAtom(state,selected);selected=null;});});
+if(!locked&&saved.drafts?.[task.id]){state=Chem.clone(saved.drafts[task.id].state);assisted=saved.drafts[task.id].assisted||false;}
+taskUrl();resetView();if(state.nodes.length){Chem.layout(state,true);fit();}render();persist();
+window.addEventListener('resize',()=>{if(state.nodes.length)fit();else{resetView();view();}});
+// Public read-only adapter for accessibility/debugging; no answer is placed automatically.
+window.organicLab={getState:()=>Chem.clone(state),getTask:()=>task.id,getTaskCount:()=>db.tasks.length};
+
+window.addEventListener('pageshow',e=>{if(!e.persisted)return;saved=loadProgress();solved=new Set(saved.solved||[]);completed=completedTasks(saved);if(completed.has(task.id)){locked=true;state=Chem.blank(task.ratio);assisted=false;selected=null;tool='select';history=[];future=[];feedback=null;resetView();}render();persist();});

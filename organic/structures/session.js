@@ -1,0 +1,7 @@
+export const STORAGE_KEY='organic-lab-v1';
+export function loadProgress(storage){try{const value=JSON.parse((storage||globalThis.localStorage).getItem(STORAGE_KEY));return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}catch{return {};}}
+export function saveProgress(value,storage){try{(storage||globalThis.localStorage).setItem(STORAGE_KEY,JSON.stringify(value));return true;}catch{return false;}}
+export function completedTasks(saved){return new Set([...(Array.isArray(saved.solved)?saved.solved:[]),...(Array.isArray(saved.completed)?saved.completed:[])]);}
+export function chooseTaskIndex(tasks,completed,excludeId,random=Math.random){if(!tasks.length)return -1;const available=tasks.map((t,i)=>({t,i})).filter(({t})=>!completed.has(t.id));let pool=available.length?available:tasks.map((t,i)=>({t,i}));const others=pool.filter(({t})=>t.id!==excludeId);if(others.length)pool=others;return pool[Math.min(pool.length-1,Math.floor(random()*pool.length))].i;}
+export function matchesElements(task,elements){return [...elements].every(e=>(task.ratio[e]||0)>0);}
+export function pinchViewport(initial,anchor,startDistance,points,rect){const [a,b]=points,distance=Math.max(1,Math.hypot(b.x-a.x,b.y-a.y)),w=Math.max(260,Math.min(2200,initial.w*startDistance/distance)),h=w*rect.height/rect.width,mx=(a.x+b.x)/2,my=(a.y+b.y)/2;return {x:anchor.x-(mx-rect.left)/rect.width*w,y:anchor.y-(my-rect.top)/rect.height*h,w,h};}
