@@ -1,0 +1,9 @@
+/* Shared contact links in the footers of the chemistry portal. */
+.home-footer{flex-wrap:wrap}
+.footer-contacts{display:flex;flex-wrap:wrap;align-items:center;gap:8px 24px;width:100%;font-size:13px;line-height:1.5}
+.footer-contacts a{display:inline-flex;align-items:center;min-height:32px;color:var(--accent,var(--teal,#087eaf));text-decoration:underline;text-underline-offset:4px}
+.footer-contacts a:hover{text-decoration-thickness:2px}
+.footer-contacts a:focus-visible{outline:2px solid currentColor;outline-offset:4px;border-radius:2px}
+.page-footer{flex-wrap:wrap}
+.catalog-footer{max-width:1800px;margin:0 auto;padding:20px 38px;border-top:1px solid var(--border)}
+@media(max-width:750px){.footer-contacts{gap:4px 20px;font-size:12px}.catalog-footer{padding:16px 14px}}
