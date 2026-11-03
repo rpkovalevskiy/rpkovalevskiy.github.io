@@ -33,7 +33,9 @@
   return [...ids].map(id=>reactions.get(id)).filter(Boolean);
  }
  function trainingNames(s,forReaction=false){
-  return ['systematic','trivial_required'].flatMap(group=>(s.names[group]||[]).map(n=>{
+  // Trivial names may describe a solution or material unsuitable for this reaction.
+  const groups=forReaction?['systematic']:['systematic','trivial_required'];
+  return groups.flatMap(group=>(s.names[group]||[]).map(n=>{
    const item=typeof n==='string'?{name:n}:{...n};
    return {...item,group,formula:item.related_formula||s.formula,label:item.name+(item.qualifier?' ('+item.qualifier+')':'')};
   })).filter(n=>!forReaction||formulaKey(n.formula)===formulaKey(s.formula));
