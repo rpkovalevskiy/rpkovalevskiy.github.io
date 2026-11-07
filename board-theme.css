@@ -1,0 +1,177 @@
+/* Shared controls and the two board palettes. */
+.board-theme-toggle{
+ flex:none;padding:8px 13px;border:1px solid #c6d9d2;border-radius:7px;
+ color:#245b46;background:#f3f8f5;
+ font-family:inherit;font-size:13px;font-weight:700;line-height:1.3;cursor:pointer;white-space:nowrap;min-height:38px
+}
+.board-theme-toggle:hover{background:#e6f1eb}
+.board-theme-toggle:focus-visible{outline:2px solid #087eaf;outline-offset:3px}
+@media(max-width:1000px){
+ .site-header .header-inner,.topbar{flex-wrap:wrap;gap:10px 16px}
+ .site-header .header-inner .board-theme-toggle{margin-left:auto;order:2}
+ .site-header .top-nav,.site-header .home-nav{order:3}
+}
+@media(max-width:480px){
+ .site-header .site-logo img{height:auto;width:min(51vw,210px)}
+ .topbar .chem-logo{flex-basis:min(48vw,200px)}
+ .topbar .board-theme-toggle{margin-left:auto}
+}
+/* The home cards use their original light surfaces with tool previews. */
+.home-intro h1{max-width:none}
+@media(min-width:751px){.home-intro h1{font-size:clamp(33px,4.2vw,54px)}}
+.card-art.home-tool{min-height:160px;height:auto;padding:12px;flex-direction:column;gap:6px}
+.home-tool .mini-search{align-self:stretch;border:1px solid #b5d3e0;border-radius:6px;background:#fff;padding:4px 10px;color:#20596f}
+.home-tool .cuo{font-size:29px;line-height:1.25;color:#155879;font-weight:700}
+.home-tool .caption{font-size:13px;color:#314f5b}
+.home-tool .atom-row{display:flex;gap:6px}
+.home-tool .atom-row span{border:1px solid #9ebfcf;border-radius:5px;padding:1px 7px;background:#fff;color:#20596f}
+.home-tool .atom-row span:first-child{background:#fff4c6;border-color:#d1ad49}
+.home-tool .molecule{font-size:25px;color:#155879}
+.home-tool .molecule span{margin-left:12px;color:#85513b}
+.home-grid .card-art{min-height:160px}
+.home-grid .card-description{margin-bottom:0}
+/* Keep each pair aligned, including when a task advances to its next stage. */
+.trainer-preview{display:flex;min-width:0}
+.trainer-preview>.trainer-session{width:100%;min-width:0;margin:0;padding:20px}
+.trainer-preview .trainer-session h2{font-size:19px;margin-bottom:10px}
+.trainer-preview .trainer-condition-layout{grid-template-columns:minmax(0,1fr);gap:12px}
+.trainer-preview .trainer-electronic-row{grid-template-columns:minmax(0,1fr) minmax(70px,95px) auto}
+.trainer-preview .trainer-memo-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.trainer-preview .trainer-memo-card{min-width:0;color:var(--ink);background:var(--soft);border-color:var(--line)}
+.trainer-session input::placeholder{color:#bccbc4;opacity:1}
+.trainer-session .trainer-field,.trainer-session .trainer-condition-choice,.trainer-session .trainer-instruction{color:var(--ink)}
+.trainer-preview .trainer-actions{margin-top:14px}
+.trainer-preview .trainer-equation{overflow-wrap:anywhere;color:#9ddcf5}
+@media(max-width:560px){
+ .trainer-preview>.trainer-session{padding:15px}
+ .trainer-preview .trainer-electronic-row{grid-template-columns:minmax(0,1fr) 80px}
+ .trainer-preview .trainer-electronic-row button{grid-column:1/-1;justify-self:start}
+}
+/* One framed periodic board, with bright rims on the available magnets. */
+.periodic-panel{
+ color:#f7f1e6;background-color:#181c1e;
+ background-image:linear-gradient(#ffffff09 1px,transparent 1px),linear-gradient(90deg,#ffffff09 1px,transparent 1px);
+ background-size:22px 22px;border:12px solid #76543b;border-top-color:#906848;
+ border-bottom-color:#64452f;border-radius:13px;
+ box-shadow:inset 0 0 0 1px #c49a6b60,inset 0 0 0 3px #111516,0 3px 0 #493221,0 6px 12px #24201b24
+}
+.periodic-panel h2{color:#fff5e5}
+.periodic-panel :is(.panel-label,.periodic-legend,.periodic-mobile-hint,.pt-detached-title,.pt-hydrogen-note,.periodic-table th){color:#d4e0e5}
+.periodic-panel .periodic-table thead th{border-color:#78909b55}
+.periodic-panel .periodic-table .pt-period{background:#263237;color:#e5eff4}
+.periodic-panel .pt-element{border-radius:6px;border:1px solid #b0c4d2;box-shadow:0 2px 3px #080d1180,inset 0 1px 0 #ffffff8a}
+.periodic-panel .pt-inactive{background:#d8e6ef;color:#405b6a}
+.periodic-panel .pt-inactive :is(.pt-number,.pt-name){color:#435e6d}
+.periodic-panel .pt-active,.periodic-panel .pt-period-start:not(:first-child) .pt-active{
+ background:#f8fdff;border-color:#29b9ff;box-shadow:inset 0 0 0 2px #29b9ff,0 2px 4px #090f15a8
+}
+.periodic-panel .pt-active :is(.pt-cell,.pt-number){color:#134c68}
+.periodic-panel .pt-active .pt-symbol{font-weight:700}
+.periodic-panel .pt-active:hover,.periodic-panel .is-compact .pt-active:hover{background:#e8f7ff}
+.periodic-panel .pt-swatch{background:#d8e6ef;border-color:#b0c4d2}
+.periodic-panel .pt-swatch.available{background:#f8fdff;border-color:#29b9ff;box-shadow:inset 0 0 0 1px #29b9ff}
+@media(max-width:750px){.periodic-panel{padding:17px 9px 13px;border-width:8px}}
+/* Explicit overlay palettes avoid inheriting the board's ink on a white menu. */
+.canvas-wrap :is(.bond-menu,.zoom-controls,.molecule-rotation){
+ --border:#52645f;--teal:#b6e4d0;--muted:#c6d4ce;--ink:#f5f6f3;
+ color:var(--ink);background:#263232;border:1px solid var(--border);box-shadow:0 4px 14px #11191972
+}
+.canvas-wrap :is(.bond-menu,.zoom-controls,.molecule-rotation) button{color:var(--ink);background:#344441;border-color:#667b74}
+.canvas-wrap :is(.zoom-controls #fit span,#zoom-label,.rotation-controls span,.align-molecule span){color:var(--muted)}
+.canvas-wrap :is(.bond-menu,.zoom-controls,.molecule-rotation) button:not(:disabled):hover{color:#fff;background:#465c55;border-color:#a6c9ba}
+.canvas-wrap .bond-menu-orders button.active,.canvas-wrap .bond-menu-orders button.active:hover{color:#18352a;background:#b6e4d0;border-color:#d3f4e6}
+.canvas-wrap :is(.bond-menu,.zoom-controls,.molecule-rotation) button:disabled{opacity:1;color:#aab9b3;background:#2b3736;border-color:#4d605b}
+.canvas-wrap .bond-menu .delete-bond,.canvas-wrap .bond-menu .delete-bond:hover{color:#ffb5ad;background:transparent}
+.canvas-wrap .selection-info{color:#dce6df}
+/* Inversion keeps frames and the meanings of feedback colours. */
+[data-board-theme="light"] :is(.chalkboard,.trainer-session,.reaction-card,.canvas-wrap,.wd-board,.periodic-panel){
+ --ink:#172923;--muted:#52675f;--accent:#245b46;--soft:#edf3ed;--line:#c8d8cf;--paper:#fafbf7;
+ color:var(--ink);background-color:#fafbf7;
+ background-image:linear-gradient(#597e7417 1px,transparent 1px),linear-gradient(90deg,#597e7417 1px,transparent 1px);
+ box-shadow:inset 0 0 0 2px #4a33251d,0 2px 0 #4b3628,0 4px 7px #18161120
+}
+[data-board-theme="light"] :is(.chalkboard,.trainer-session,.reaction-card,.wd-board,.periodic-panel) :is(h2,a,.muted,.optional-name,.reaction-formula,.reaction-equation){color:var(--ink)}
+[data-board-theme="light"] .trainer-session :is(input,select,.button:not(.primary)){
+ color:#172923;border-color:#46665b;background:#ffffffdb
+}
+[data-board-theme="light"] .trainer-session input::placeholder{color:#586861}
+[data-board-theme="light"] .trainer-session .button.primary{color:#fff;background:#245b46}
+[data-board-theme="light"] .trainer-session :is(.trainer-operator,.trainer-condition){color:#155879}
+[data-board-theme="light"] .trainer-preview .trainer-equation{color:#155879}
+[data-board-theme="light"] .wd-board :is(.wd-board-top,.wd-attempt,.wd-punctuation,.wd-token){color:#172923}
+[data-board-theme="light"] .wd-board :is(.wd-empty-cells i,.wd-token){border-color:#46665b}
+[data-board-theme="light"] .wd-token.wd-absent{background:#e2e6e5}
+[data-board-theme="light"] .periodic-panel :is(.panel-label,.periodic-legend,.periodic-mobile-hint,.pt-detached-title,.pt-hydrogen-note,.periodic-table th){color:#364e58}
+[data-board-theme="light"] .periodic-panel .periodic-table .pt-period{background:#e9eff0;color:#364e58}
+[data-board-theme="light"] .canvas-wrap :is(.canvas-label,.selection-info){color:#344e44}
+[data-board-theme="light"] .canvas-wrap .atom-label{fill:#1f383c;stroke:#fafbf7}
+[data-board-theme="light"] .canvas-wrap .bond-line{stroke:#26464a}
+[data-board-theme="light"] .canvas-wrap .atom-dot{fill:#26464a}
+[data-board-theme="light"] .canvas-wrap #dots circle{fill:#cddcdf}
+[data-board-theme="light"] .canvas-wrap :is(.bond-menu,.zoom-controls,.molecule-rotation){
+ --border:#c0d4cd;--teal:#245b46;--muted:#52675f;--ink:#172923;
+ background:#fff;box-shadow:0 4px 14px #29463d25
+}
+[data-board-theme="light"] .canvas-wrap :is(.bond-menu,.zoom-controls,.molecule-rotation) button{color:var(--ink);background:#f2f7f3;border-color:#a6c0b6}
+[data-board-theme="light"] .canvas-wrap :is(.bond-menu,.zoom-controls,.molecule-rotation) button:not(:disabled):hover{color:#18352a;background:#dcefe4}
+[data-board-theme="light"] .canvas-wrap .bond-menu-orders button.active{color:#17372b;background:#cfeadd;border-color:#4c8470}
+[data-board-theme="light"] .canvas-wrap :is(.bond-menu,.zoom-controls,.molecule-rotation) button:disabled{color:#64756e;background:#edf2ee}
+[data-board-theme="light"] .canvas-wrap .bond-menu .delete-bond{color:#943e33;background:transparent}
+
+/* Shared answer colours. Cool green and warm gold remain distinct on slate. */
+:root {
+ --answer-green:#77d5ae;
+ --answer-gold:#f3cd59;
+ --answer-red:#ffbbae;
+ --answer-chalk:repeating-linear-gradient(135deg, #fff3 0 1px, transparent 1px 4px);
+}
+[data-board-theme="light"] {
+ --answer-green:#b2e5c9;
+ --answer-gold:#f8e3a0;
+ --answer-red:#ffd8d0;
+}
+:is(.wd-token,.wd-dot).wd-exact,
+.wordle-entry-mark i:first-child,
+.wordle-tiles span:first-child,
+.trainer-session .trainer-feedback.success,
+.trainer-session .trainer-memo-card.is-matched,
+.structure-trainer :is(.feedback.success,.completed-banner) {
+ background-color:var(--answer-green);
+ background-image:var(--answer-chalk);
+ color:#16392d;
+ border-color:#4a9d7a;
+}
+:is(.wd-token,.wd-dot).wd-present,
+.wordle-entry-mark i:nth-child(2),
+.wordle-tiles span:nth-child(3) {
+ background-color:var(--answer-gold);
+ background-image:var(--answer-chalk);
+ color:#392b0b;
+ border-color:#bc912d;
+}
+.trainer-session .trainer-feedback.error,
+.structure-trainer .feedback:not(.success) {
+ background-color:var(--answer-red);
+ background-image:var(--answer-chalk);
+ color:#692921;
+ border-color:#ca7668;
+}
+:is(.wd-token,.wd-dot).wd-absent,
+.wordle-entry-mark i:nth-child(3),
+.wordle-tiles span:nth-child(2){background-image:var(--answer-chalk)}
+.trainer-session .trainer-memo-card.is-matched:disabled{opacity:1}
+.wd-side #wd-feedback:not(:has(#wd-message:not(:empty),#wd-suggestions:not(:empty))){display:none}
+
+@media(max-width:750px){
+ .wd-page .wd-side{display:contents}
+ .wd-side #wd-form{order:1}
+ .wd-side #wd-feedback{order:2}
+ .wd-page .wd-board{order:3;align-self:stretch}
+ .wd-side .wd-rules{order:4}
+ .wd-page .wd-stats{order:5}
+ .wd-page .wd-storage{order:6}
+ .wd-side #wd-form label{font-size:17px;margin-bottom:7px}
+ .wd-side .wd-input-line{flex-wrap:nowrap}
+ .wd-side #wd-input{flex:1 1 0;width:0;min-height:48px}
+ .wd-side .wd-input-line .button.primary{width:auto;min-height:48px}
+}

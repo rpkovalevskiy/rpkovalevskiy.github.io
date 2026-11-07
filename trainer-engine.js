@@ -329,9 +329,11 @@
    if(seen.has(key))return false;seen.add(key);return true;
   });
  }
- function makeSession(settings,reactionPool=data.reactions,rng=Math.random){
+ function makeSession(settings,reactionPool=data.reactions,rng=Math.random,exampleKeys=null){
   if(!supportedModes.has(settings.mode))return {error:'Такой режим тренировки недоступен.'};
-  const available=pool(settings,reactionPool),count=Number(settings.count);
+  const eligible=pool(settings,reactionPool);
+  const available=exampleKeys?eligible.filter(item=>exampleKeys.includes(item.id||item.key)):eligible;
+  const count=Number(settings.count);
   if(!Number.isInteger(count)||count<1||count>available.length)return {error:'Количество заданий должно быть от 1 до '+available.length+'.'};
   const presentations=shuffle(Array.from({length:count},(_,i)=>settings.mode==='balance'?'formulas':settings.presentation==='mixed'?(i<Math.ceil(count/2)?'formulas':'names'):settings.presentation),rng);
   const selected=shuffle(available,rng).slice(0,count);

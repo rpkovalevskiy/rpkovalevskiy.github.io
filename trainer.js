@@ -1,6 +1,6 @@
 (function(){
  'use strict';
- window.createChemistryTrainer=function(data,helpers){
+ window.createChemistryTrainer=function(data,helpers,mini=null){
   const {esc,formula,crumbs,heading,url,link,filteredReactions,compare}=helpers;
   const E=window.createTrainerEngine(data);
   const modes=[
@@ -15,6 +15,23 @@
    ['memo','Тривиальное мемо','Найдите пары: формула и обязательное тривиальное название.']
   ];
   let settings=null,session=null,routeKey='',context={},host=null,formError='';
+  let modeLocked=false,previews=[];
+  const exampleKeys={
+   products:['RXN-3FE4FD60FF1C'],full:['RXN-F12ED4D21AAA'],balance:['RXN-324AEF77EF6D'],
+   missing:['RXN-8E0A271EB327'],names:['SUB-337EB3C1FD61'],roles:['RXN-354714D6E7B9'],
+   electrons:['RXN-11E80268EE17'],conditions:['ALT-0E75635C720A'],
+   memo:['SUB-3A9C4B2A4E72','SUB-FA74D0F1D421']
+  };
+  const idFor=id=>mini?id+'-'+mini:id;
+  const setupUrl=mode=>url('/trainer',{mode});
+  const openTraining=()=>link('Открыть тренажёр →',setupUrl(settings.mode),'button primary');
+  function catalog(){
+   previews=modes.map(([id,title])=>({id,title,trainer:window.createChemistryTrainer(data,helpers,id)}));
+   return '<section class="chalk-catalog" aria-label="Попробуйте короткое задание">'+previews.map(({id,title,trainer})=>
+    '<article class="chalk-card"><h2>'+esc(title)+'</h2><div class="trainer-preview" data-trainer-preview="'+id+'">'+trainer.renderExample()+'</div>'+link('Начать тренировку →',setupUrl(id),'sample-start')+'</article>'
+   ).join('')+'</section>';
+  }
+
   const sortedSubstances=[...data.substances].sort((a,b)=>compare(a.formula,b.formula));
   const sourcePool=()=>settings.scope==='selection'?filteredReactions(context):data.reactions;
   const options=(entries,value)=>entries.map(([v,label])=>'<option value="'+esc(v)+'"'+(v===value?' selected':'')+'>'+esc(label)+'</option>').join('');
@@ -57,7 +74,7 @@
    const scopeOptions=[['all','Вся база'],['substance','С конкретным веществом'],['element','С конкретным элементом'],['class','С классом веществ']];
    if(Object.keys(context).length)scopeOptions.push(['selection','Текущая выборка каталога']);
    return '<form id="trainer-settings" class="trainer-settings">'+
-    '<section class="panel"><h2>Что тренируем</h2><div class="trainer-modes">'+modes.map(([id,title,description])=>'<label class="trainer-mode"><input type="radio" name="mode" value="'+id+'"'+(settings.mode===id?' checked':'')+'><span><strong>'+title+'</strong><small>'+description+'</small></span></label>').join('')+'</div></section>'+
+    (modeLocked?'':'<section class="panel"><h2>Что тренируем</h2><div class="trainer-modes">'+modes.map(([id,title,description])=>'<label class="trainer-mode"><input type="radio" name="mode" value="'+id+'"'+(settings.mode===id?' checked':'')+'><span><strong>'+title+'</strong><small>'+description+'</small></span></label>').join('')+'</div></section>')+
     '<section class="panel trainer-options"><h2>Настройки тренировки</h2><div class="trainer-fields">'+
     '<label class="trainer-field">Тема<select name="scope">'+options(scopeOptions,settings.scope)+'</select></label>'+
     (settings.scope==='substance'?'<label class="trainer-field">Вещество<input id="trainer-substance" list="trainer-substance-list" autocomplete="off" placeholder="Формула или выберите название" value="'+esc(substance?substance.formula+' — '+(typeof substance.names.systematic[0]==='string'?substance.names.systematic[0]:substance.names.systematic[0].name):'')+'"><datalist id="trainer-substance-list">'+sortedSubstances.map(s=>'<option value="'+esc(s.formula+' — '+(typeof s.names.systematic[0]==='string'?s.names.systematic[0]:s.names.systematic[0].name))+'"></option>').join('')+'</datalist></label>':'')+
@@ -104,10 +121,10 @@
   }
   function memoView(){
    const task=session.tasks[0],done=!!task.outcome;
-   return '<section class="panel trainer-session"><div class="trainer-session-top"><div><span class="eyebrow">Тривиальное мемо</span><p>Найдено пар: '+task.matched.length/2+' из '+task.pairs.length+'</p></div><button class="button ghost small" type="button" data-trainer-action="settings">К настройкам</button></div><h2 class="section-space">Найдите пары карточек</h2><p class="trainer-instruction">Откройте формулу и её тривиальное название. Неверная пара закроется при открытии следующей карточки.</p><div class="trainer-memo-grid">'+task.cards.map((card,i)=>{
+   return '<section class="panel trainer-session">'+(mini?'':'<div class="trainer-session-top"><div><span class="eyebrow">Тривиальное мемо</span><p>Найдено пар: '+task.matched.length/2+' из '+task.pairs.length+'</p></div><button class="button ghost small" type="button" data-trainer-action="settings">К настройкам</button></div>')+' <h2 class="section-space">Найдите пары карточек</h2><p class="trainer-instruction">Откройте формулу и её тривиальное название. Неверная пара закроется при открытии следующей карточки.</p><div class="trainer-memo-grid">'+task.cards.map((card,i)=>{
     const matched=task.matched.includes(i),open=done||matched||task.faceUp.includes(i);
     return '<button type="button" data-memo-card="'+i+'" class="trainer-memo-card'+(open?' is-open':'')+(matched?' is-matched':'')+'" aria-label="Карточка '+(i+1)+'. '+(open?esc(card.text)+(matched?'. Пара найдена':''): 'Закрыта')+'" aria-pressed="'+open+'"'+(matched||done?' disabled':'')+'>'+(open?card.kind==='formula'?formula(card.text):esc(card.text):'<span aria-hidden="true">?</span>')+'</button>';
-   }).join('')+'</div>'+(task.feedback?'<p class="trainer-feedback '+(task.feedback.ok?'success':'error')+'" role="status">'+esc(task.feedback.message)+'</p>':'')+'<div class="trainer-actions">'+(done?'<button class="button primary" type="button" data-trainer-action="next">Завершить игру</button>':'<button class="button" type="button" data-trainer-action="reveal">Посмотреть ответ</button>')+'</div></section>';
+   }).join('')+'</div>'+(task.feedback?'<p class="trainer-feedback '+(task.feedback.ok?'success':'error')+'" role="status">'+esc(task.feedback.message)+'</p>':'')+'<div class="trainer-actions">'+(mini?(done?openTraining():''):(done?'<button class="button primary" type="button" data-trainer-action="next">Завершить игру</button>':'<button class="button" type="button" data-trainer-action="reveal">Посмотреть ответ</button>'))+'</div></section>';
   }
   function answer(task){
    if(settings.mode==='conditions')return '<div class="trainer-answer"><h3>Ответ</h3>'+task.conditionCards.map(card=>'<p class="trainer-condition">'+esc(card.label)+'</p>'+taskEquation({reaction:E.reactions.get(card.reaction_id),presentation:'formulas'},{answer:true})).join('')+'</div>';
@@ -144,12 +161,12 @@
     prompt='Допишите продукты реакции';question=taskEquation(task,{leftOnly:true});inputLabel='Правая часть без коэффициентов';placeholder='Продукт + продукт';
    }
    const formulaInput=settings.mode!=='names'||task.direction==='name-to-formula';
-   return '<section class="panel trainer-session"><div class="trainer-session-top"><div><span class="eyebrow">'+esc(modeTitle())+'</span><p>Задание '+(session.index+1)+' из '+session.tasks.length+'</p></div><button class="button ghost small" type="button" data-trainer-action="settings">К настройкам</button></div><progress class="trainer-progress" max="'+session.tasks.length+'" value="'+session.index+'" aria-label="Пройдено заданий"></progress>'+
-    '<form id="trainer-answer-form"><h2>'+prompt+'</h2>'+question+(!done?taskConditions(task):'')+
-    (!done&&settings.checking==='input'&&task.stage!=='balance'&&['products','full','missing','names'].includes(settings.mode)?'<label class="trainer-field trainer-input-label">'+inputLabel+'<input id="trainer-answer-input" name="answer" value="'+esc(task.input)+'" placeholder="'+esc(placeholder)+'" maxlength="1800" autocomplete="off" autocapitalize="off" spellcheck="false" required></label>'+(formulaInput?'<div id="trainer-input-preview" class="trainer-input-preview" aria-hidden="true">'+(task.input?formula(task.input):'')+'</div><p class="trainer-instruction">Индексы можно вводить обычными цифрами: H2O.</p>':''):'')+
-    '<div id="trainer-feedback" class="trainer-feedback'+(task.feedback?(task.feedback.ok?' success':' error'):'')+'" '+(task.feedback?'role="'+(task.feedback.ok?'status':'alert')+'"':'aria-live="polite"')+'>'+esc(task.feedback?.message||'')+'</div>'+
-    (done?answer(task):'')+
-    '<div class="trainer-actions">'+(done?'<button type="button" class="button primary" data-trainer-action="next">'+(session.index===session.tasks.length-1?'Завершить тренировку':'Следующее задание')+' <span aria-hidden="true">→</span></button>':(settings.checking==='input'?'<button type="submit" class="button primary">Проверить</button>':'')+'<button type="button" class="button" data-trainer-action="reveal">Посмотреть ответ</button><button type="button" class="button ghost" data-trainer-action="skip">Пропустить</button>')+'</div></form></section>';
+   return '<section class="panel trainer-session">'+(mini?'':'<div class="trainer-session-top"><div><span class="eyebrow">'+esc(modeTitle())+'</span><p>Задание '+(session.index+1)+' из '+session.tasks.length+'</p></div><button class="button ghost small" type="button" data-trainer-action="settings">К настройкам</button></div><progress class="trainer-progress" max="'+session.tasks.length+'" value="'+session.index+'" aria-label="Пройдено заданий"></progress>')+
+    '<form id="'+idFor('trainer-answer-form')+'"><h2>'+prompt+'</h2>'+question+(!done?taskConditions(task):'')+
+    (!done&&settings.checking==='input'&&task.stage!=='balance'&&['products','full','missing','names'].includes(settings.mode)?'<label class="trainer-field trainer-input-label">'+inputLabel+'<input id="'+idFor('trainer-answer-input')+'" name="answer" value="'+esc(task.input)+'" placeholder="'+esc(placeholder)+'" maxlength="1800" autocomplete="off" autocapitalize="off" spellcheck="false" required></label>'+(formulaInput?'<div id="'+idFor('trainer-input-preview')+'" class="trainer-input-preview" aria-hidden="true">'+(task.input?formula(task.input):'')+'</div><p class="trainer-instruction">Индексы можно вводить обычными цифрами: H2O.</p>':''):'')+
+    '<div id="'+idFor('trainer-feedback')+'" class="trainer-feedback'+(task.feedback?(task.feedback.ok?' success':' error'):'')+'" '+(task.feedback?'role="'+(task.feedback.ok?'status':'alert')+'"':'aria-live="polite"')+'>'+esc(task.feedback?.message||'')+'</div>'+
+    (done&&!mini?answer(task):'')+
+    '<div class="trainer-actions">'+(mini?(done?openTraining():'<button type="submit" class="button primary">Проверить</button>'):(done?'<button type="button" class="button primary" data-trainer-action="next">'+(session.index===session.tasks.length-1?'Завершить тренировку':'Следующее задание')+' <span aria-hidden="true">→</span></button>':(settings.checking==='input'?'<button type="submit" class="button primary">Проверить</button>':'')+'<button type="button" class="button" data-trainer-action="reveal">Посмотреть ответ</button><button type="button" class="button ghost" data-trainer-action="skip">Пропустить</button>'))+'</div></form></section>';
   }
   function summary(){
    if(settings.mode==='memo')return '<section class="panel trainer-summary"><span class="eyebrow">Тривиальное мемо</span><h2>'+(session.tasks[0].outcome==='correct'?'Все пары найдены':'Игра завершена')+'</h2><p>Количество пар: '+session.tasks[0].pairs.length+'</p><button type="button" class="button primary" data-trainer-action="settings">Новая игра</button></section>';
@@ -157,8 +174,8 @@
    return '<section class="panel trainer-summary"><span class="eyebrow">'+esc(modeTitle())+'</span><h2>Тренировка завершена</h2><p>Пройдено заданий: '+session.tasks.length+'</p><dl><div><dt>Решено</dt><dd>'+count('correct')+'</dd></div><div><dt>Ответ просмотрен</dt><dd>'+count('revealed')+'</dd></div><div><dt>Пропущено</dt><dd>'+count('skipped')+'</dd></div></dl><button type="button" class="button primary" data-trainer-action="settings">Новая тренировка <span aria-hidden="true">→</span></button></section>';
   }
   function content(){return !session?setup():session.done?summary():taskView();}
-  function focusAnswer(){requestAnimationFrame(()=>host?.querySelector('#trainer-answer-input,[data-coefficient],[data-role-index],[data-electronic-text],[data-condition-index]')?.focus({preventScroll:true}));}
-  function update(focus=false){if(!host)return;host.innerHTML=content();bind();if(focus){host.scrollIntoView({block:'start'});focusAnswer();}}
+  function focusAnswer(){requestAnimationFrame(()=>host?.querySelector('[name="answer"],[data-coefficient],[data-role-index],[data-electronic-text],[data-condition-index]')?.focus({preventScroll:true}));}
+  function update(focus=false){if(!host)return;host.innerHTML=content();bind();if(focus){if(!mini)host.scrollIntoView({block:'start'});focusAnswer();}}
   function feedback(result){
    const task=session.tasks[session.index];task.feedback={ok:result.ok,message:result.message};
    if(result.ok){
@@ -192,7 +209,7 @@
     if(event.target.id==='trainer-settings'){
      readForm();formError='';const result=E.makeSession(settings,sourcePool());
      if(result.error){formError=result.error;update();return;}session=result;update(true);
-    }else if(event.target.id==='trainer-answer-form')submitAnswer(event.target);
+    }else if(event.target.id===idFor('trainer-answer-form'))submitAnswer(event.target);
    };
    host.onchange=event=>{
     if(session){const task=session.tasks[session.index];if(event.target.dataset.roleIndex!==undefined)task.roles[Number(event.target.dataset.roleIndex)]=event.target.value;if(event.target.dataset.conditionIndex!==undefined)task.conditionValues[Number(event.target.dataset.conditionIndex)]=event.target.value;return;}
@@ -218,8 +235,8 @@
     const task=session.tasks[session.index];
     if(event.target.dataset.electronicText!==undefined)task.electronRows[Number(event.target.dataset.electronicText)].text=event.target.value;
     if(event.target.dataset.electronicMultiplier!==undefined)task.electronRows[Number(event.target.dataset.electronicMultiplier)].multiplier=event.target.value;
-    if(event.target.id==='trainer-answer-input'){
-     task.input=event.target.value;const preview=host.querySelector('#trainer-input-preview');if(preview)preview.innerHTML=formula(task.input);
+    if(event.target.id===idFor('trainer-answer-input')){
+     task.input=event.target.value;const preview=host.querySelector('#'+idFor('trainer-input-preview'));if(preview)preview.innerHTML=formula(task.input);
     }
     if(event.target.dataset.coefficient!==undefined)task.values[Number(event.target.dataset.coefficient)]=event.target.value;
    };
@@ -242,9 +259,30 @@
    render(params={}){
     const key=JSON.stringify(params);
     if(!settings||key!==routeKey){routeKey=key;settings=defaultSettings(params);session=null;formError='';clampCount();}
-    return crumbs([['Тренажёр']])+heading('Тренажёр реакций','Выберите режим и потренируйтесь на реакциях базы.')+'<div id="trainer-root">'+content()+'</div>';
+    previews=[];
+    modeLocked=modes.some(([id])=>id===params.mode);
+    if(!Object.keys(params).length)return crumbs([['Тренажёр']])+heading('Что потренируем?','Попробуй короткое задание и выбери тренировку.')+catalog();
+    return crumbs(modeLocked?[['Тренажёры',url('/trainer')],[modeTitle()]]:[['Тренажёр']])+
+     heading(modeLocked?modeTitle():'Тренажёр реакций',modeLocked?'Настройте тренировку.':'Выберите режим и потренируйтесь на реакциях базы.')+
+     '<div id="trainer-root">'+content()+'</div>';
    },
-   mount(){host=document.getElementById('trainer-root');if(host)bind();}
+   renderExample(){
+    const keys=exampleKeys[mini];
+    settings={...defaultSettings({mode:mini}),count:keys.length};
+    session=E.makeSession(settings,data.reactions,()=>0,keys);
+    if(session.error)return '<p>Откройте тренажёр, чтобы начать.</p>';
+    if(mini==='missing'){
+     const task=session.tasks[0];
+     // Keep the recorded condition about O₂ visible while hiding H₂S.
+     task.hiddenIndex=E.missingIndices(task.reaction).find(i=>task.reaction.terms[i].formula==='H2S');
+    }
+    return taskView();
+   },
+   mount(root=document.getElementById('trainer-root')){
+    host=root;
+    if(host&&!session?.error)bind();
+    for(const {id,trainer} of previews)trainer.mount(document.querySelector('[data-trainer-preview="'+id+'"]'));
+   }
   };
  };
 })();
