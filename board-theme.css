@@ -49,6 +49,10 @@
 .home-grid .card-art svg.molecule{width:min(194px,100%);height:58px;flex:none;color:var(--preview-ink)}
 .home-tool .molecule-loose{fill:var(--preview-loose)}
 .home-grid .card-description{margin-bottom:0}
+@media (min-width:751px) and (max-width:900px){
+ .home-grid .wordle-tiles{gap:6px}
+ .home-grid .wordle-tiles span{width:42px;height:44px;font-size:19px}
+}
 /* Keep each pair aligned, including when a task advances to its next stage. */
 .trainer-preview{display:flex;min-width:0}
 .trainer-preview>.trainer-session{width:100%;min-width:0;margin:0;padding:20px}
