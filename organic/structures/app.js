@@ -1,4 +1,4 @@
-import * as Chem from './chemistry.js?v=20261027-rotation';
+import * as Chem from './chemistry.js?v=20261114-organic1';
 import {loadProgress,saveProgress,completedTasks,chooseTaskIndex,pinchViewport} from './session.js';
 const db=window.ORGANIC_DATA,$=id=>document.getElementById(id),NS='http://www.w3.org/2000/svg';
 const molecules=Object.fromEntries(db.molecules.map(m=>[m.id,m]));

@@ -1,7 +1,7 @@
 import {loadProgress,completedTasks,matchesElements,chooseTaskIndex} from './session.js';
 const db=window.ORGANIC_DATA,$=id=>document.getElementById(id),chosen=new Set();let saved=loadProgress(),completed=completedTasks(saved);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const available=['C','H','O','N','S','Cl','Br','Na','K','Ba','Ag'].filter(e=>db.tasks.some(t=>t.ratio[e]));
+const available=['C','H','O','N','S','Cl','Br','Na','K','Ca','Ba','Ag'].filter(e=>db.tasks.some(t=>t.ratio[e]));
 function render(){
  $('element-filters').innerHTML=available.map(e=>`<button data-filter="${e}" class="element-filter ${chosen.has(e)?'active':''}" aria-pressed="${chosen.has(e)}">${e}</button>`).join('');
  const tasks=db.tasks.map((t,i)=>({t,i})).filter(({t})=>matchesElements(t,chosen));$('catalog-count').textContent=`Заданий: ${tasks.length} из ${db.tasks.length}`;$('clear-filters').disabled=!chosen.size;

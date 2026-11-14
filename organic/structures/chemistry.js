@@ -1,5 +1,5 @@
-export const ELEMENTS=['C','H','O','N','S','Cl','Br','Na','K','Ba','Ag'];
-export const METALS={Na:1,K:1,Ba:2,Ag:1};
+export const ELEMENTS=['C','H','O','N','S','Cl','Br','Na','K','Ca','Ba','Ag'];
+export const METALS={Na:1,K:1,Ca:2,Ba:2,Ag:1};
 export const PRESETS={
  OH:{label:'OH',atoms:[['O',1,0]],bonds:[],root:0},
  CO:{label:'C=O',atoms:[['C',0,0],['O',0,0]],bonds:[[0,1,2]],root:0},
@@ -142,7 +142,7 @@ function layoutBase(s,displayOnly=false){
  }
  for(const a of s.nodes)if(!visited.has(a.id))grow(a.id);
  // Two anionic oxygens face the barium above and below it; no ionic lines are drawn.
- for(const ba of s.nodes.filter(a=>a.e==='Ba')){const links=edges(s,ba.id,true).filter(b=>b.ionic);if(links.length!==2)continue;const donors=links.map(b=>atom(s,neighbor(b,ba.id)));if(!donors.every(o=>o.e==='O'))continue;
+ for(const ba of s.nodes.filter(a=>['Ba','Ca'].includes(a.e))){const links=edges(s,ba.id,true).filter(b=>b.ionic);if(links.length!==2)continue;const donors=links.map(b=>atom(s,neighbor(b,ba.id)));if(!donors.every(o=>o.e==='O'))continue;
   donors.sort((a,b)=>a.y-b.y);const bx=ba.x,by=ba.y;
   const carbons=donors.map(o=>{const e=edges(s,o.id).find(b=>atom(s,neighbor(b,o.id)).e==='C');return e?atom(s,neighbor(e,o.id)):null;});if(carbons.some(c=>!c))continue;
   const queue=[[carbons[0].id]],pathVisited=new Set();let path=null;
